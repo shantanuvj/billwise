@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BillWise</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f9f5d7; /* Light yellow background */
+            color: #5e548e; /* Muted purple text */
+            margin: 20px;
+            padding: 10px;
+        }
+
+        h1, h3 {
+            color: #5e548e; /* Darker muted purple */
+        }
+
+        input, select, button {
+            margin: 10px 0;
+            padding: 5px;
+            border: 1px solid #d4c1ec; /* Light purple border */
+            border-radius: 4px;
+            background-color: #faf8f0; /* Light background for inputs */
+            color: #5e548e; /* Text color */
+        }
+
+        button {
+            background-color: #f1e5ac; /* Light yellow button */
+            color: #5e548e; /* Muted purple text */
+            cursor: pointer;
+            border: 1px solid #e0d3a8; /* Light yellow border */
+        }
+
+        button:hover {
+            background-color: #e0d3a8; /* Slightly darker yellow on hover */
+        }
+
+        .food-form {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .food-details {
+            flex: 2;
+        }
+
+        .shared-people {
+            flex: 1;
+        }
+
+        .food-item {
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: #eae8f0; /* Light purple background for food items */
+            border-radius: 5px;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        footer {
+            margin-top: 30px;
+            text-align: center;
+            font-size: 0.9em;
+            color: #5e548e; /* Muted purple text */
+        }
+
+        hr {
+            border: 1px solid #d4c1ec; /* Light purple line */
+        }
+
+        .cost-summary {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>BillWise</h1>
+    <hr>
+
+    <div id="peopleSection">
+        <label for="restaurantName">Restaurant Name: </label>
+        <input type="text" id="restaurantName" placeholder="Enter restaurant name" required><br>
+        <label for="totalPeople">Total Number of People: </label>
+        <input type="number" id="totalPeople" min="1" required>
+        <div id="peopleContainer"></div>
+        <button onclick="addPeople()">Add People</button>
+    </div>
+
+    <div id="foodFormSection" class="hidden">
+        <div class="food-form">
+            <div class="food-details">
+                <label for="foodName">Food Name: </label>
+                <input type="text" id="foodName" required><br>
+                <label for="foodCost">Food Cost: </label>
+                <input type="number" id="foodCost" step="0.01" required><br>
+                <label>Is this an alcoholic drink?</label><br>
+                <label><input type="radio" name="isAlcohol" value="yes"> Yes</label>
+                <label><input type="radio" name="isAlcohol" value="no" checked> No</label>
+            </div>
+            <div class="shared-people">
+                <label>Select people who shared the food:</label><br>
+                <div id="sharedPeopleContainer"></div>
+            </div>
+        </div>
+        <button onclick="addFood()">Add Food</button>
+
+        <hr>
+        <h3>Added Foods</h3>
+        <div id="foodList"></div>
+
+        <!-- Section to display total cost of added foods -->
+        <div id="totalFoodCost"></div>
+
+        <hr>
+
+        <label>Is tax separate or included? </label>
+        <label><input type="radio" name="taxOption" value="included" checked onchange="updateTotalCost()"> Included</label>
+        <label><input type="radio" name="taxOption" value="separate" onchange="updateTotalCost()"> Separate</label><br>
+
+        <label for="tip">Tip (optional): </label>
+        <input type="number" id="tip" placeholder="Enter tip in flat amount" oninput="updateTotalCost()"><br>
+
+        <!-- Section to display total food cost including tax and tip -->
+        <div id="finalCostWithTip"></div>
+
+        <hr>
+
+        <!-- Section to select who paid for the bill -->
+        <h3>Who Paid the Bill?</h3>
+        <label for="payer">Select the person who paid: </label>
+        <select id="payer"></select><br>
+
+        <hr>
+
+        <button onclick="calculateBill()">Calculate Total Cost per Person</button><br><br>
+        <div id="result"></div>
+        <div id="restaurantInfo"></div>
+    </div>
+
+    <footer>Website created by Shantanu V. Joglekar</footer>
+
+    <script>
+        let people = [], foods = [], totalFoodAmount = 0;
+
+        const addPeople = () => {
+            const totalPeople = +document.getElementById("totalPeople").value;
+            if (totalPeople < 1) return alert("Enter a valid number of people.");
+            document.getElementById("peopleContainer").innerHTML = Array.from({ length: totalPeople }, (_, i) =>
+                `<input type="text" id="person${i}" placeholder="Person ${i + 1}"><br>`
+            ).join('') + '<button onclick="storeNames()">Store Names</button>';
+            document.querySelector('button[onclick="addPeople()"]').disabled = true;
+        };
+
+        const storeNames = () => {
+            people = Array.from({ length: +document.getElementById("totalPeople").value }, (_, i) =>
+                document.getElementById(`person${i}`).value.trim()).filter(Boolean);
+            if (people.length !== +document.getElementById("totalPeople").value) return alert("Fill out all names.");
+            toggleVisibility("peopleSection", "foodFormSection");
+            document.getElementById("sharedPeopleContainer").innerHTML = people.map((name, i) =>
+                `<label><input type="checkbox" id="sharedPerson${i}"> ${name}</label><br>`
+            ).join('');
+            populatePayerDropdown();
+        };
+
+        const addFood = () => {
+            const foodName = document.getElementById("foodName").value, foodCost = +document.getElementById("foodCost").value;
+            const isAlcohol = document.querySelector('input[name="isAlcohol"]:checked').value;
+            const sharedPeople = people.filter((_, i) => document.getElementById(`sharedPerson${i}`).checked);
+            if (!foodName || !foodCost || !sharedPeople.length) return alert("Enter food details and select at least one person.");
+            
+            // Add food item to the list and calculate total
+            foods.push({ foodName, foodCost, isAlcohol, sharedPeople });
+            totalFoodAmount += foodCost;
+
+            // Update food list and total food cost
+            document.getElementById("foodList").insertAdjacentHTML('beforeend',
+                `<div class="food-item"><strong>${foodName}</strong> - ₹${foodCost.toFixed(2)} ${isAlcohol === 'yes' ? '(Alcohol)' : ''}<br> Shared by: ${sharedPeople.join(', ')}</div>`
+            );
+            document.getElementById("totalFoodCost").innerHTML = `<h3>Total Food Cost:</h3> ₹${totalFoodAmount.toFixed(2)}`;
+
+            // Reset input fields
+            document.getElementById("foodName").value = document.getElementById("foodCost").value = '';
+
+            // Update the total cost including tax and tip
+            updateTotalCost();
+        };
+
+        const updateTotalCost = () => {
+            const taxOption = document.querySelector('input[name="taxOption"]:checked').value;
+            const tip = +document.getElementById("tip").value || 0;
+
+            let totalWithTaxAndTip = totalFoodAmount;
+            let foodTax = 0, alcoholTax = 0;
+
+            if (taxOption === "separate") {
+                // Calculate food and alcohol taxes separately
+                foodTax = foods.reduce((sum, { foodCost, isAlcohol }) => isAlcohol === "no" ? sum + 0.05 * foodCost : sum, 0);
+                alcoholTax = foods.reduce((sum, { foodCost, isAlcohol }) => isAlcohol === "yes" ? sum + 0.1 * foodCost : sum, 0);
+                totalWithTaxAndTip += foodTax + alcoholTax;
+            }
+            totalWithTaxAndTip += tip;
+
+            // Display the breakdown of costs inline
+            document.getElementById("finalCostWithTip").innerHTML = `
+                <h3>Total Cost Breakdown:</h3>
+                <div class="cost-summary"><strong>Food Cost:</strong> ₹${totalFoodAmount.toFixed(2)}</div>
+                <div class="cost-summary"><strong>Food Tax (5%):</strong> ₹${foodTax.toFixed(2)}</div>
+                <div class="cost-summary"><strong>Alcohol Tax (10%):</strong> ₹${alcoholTax.toFixed(2)}</div>
+                <div class="cost-summary"><strong>Tip:</strong> ₹${tip.toFixed(2)}</div>
+                <div class="cost-summary"><strong>Total:</strong> ₹${totalWithTaxAndTip.toFixed(2)}</div>
+            `;
+        };
+
+        const calculateBill = () => {
+            const taxOption = document.querySelector('input[name="taxOption"]:checked').value, tip = +document.getElementById("tip").value || 0;
+            const payer = document.getElementById("payer").value; // Get selected payer
+            let totalBill = foods.reduce((sum, { foodCost, isAlcohol }) => sum + foodCost +
+                (taxOption === "separate" ? (isAlcohol === "yes" ? 0.1 : 0.05) * foodCost : 0), tip);
+            const costs = people.map((_, i) => foods.reduce((sum, { foodCost, isAlcohol, sharedPeople }) =>
+                sharedPeople.includes(people[i]) ? sum + (foodCost / sharedPeople.length) +
+                (taxOption === "separate" ? (isAlcohol === "yes" ? 0.1 : 0.05) * foodCost / sharedPeople.length : 0) : sum, 0) + tip / people.length);
+
+            // Display total cost per person and restaurant information
+            document.getElementById("result").innerHTML = `<h3>Total Cost per Person:</h3>${costs.map((cost, i) =>
+                `${people[i]}: ₹${cost.toFixed(2)}<br>`).join('')}`;
+            document.getElementById("restaurantInfo").innerHTML = `
+                <br><strong>Total Bill:</strong> ₹${totalBill.toFixed(2)}
+                <br><strong>Restaurant:</strong> ${document.getElementById("restaurantName").value}
+                <br><strong>Paid by:</strong> ${payer} <!-- Display who paid -->
+                <br><strong>Date & Time:</strong> ${new Date().toLocaleString()}
+            `;
+        };
+
+        const populatePayerDropdown = () => {
+            const payerDropdown = document.getElementById("payer");
+            payerDropdown.innerHTML = people.map(name => `<option value="${name}">${name}</option>`).join('');
+        };
+
+        const toggleVisibility = (hideId, showId) => {
+            document.getElementById(hideId).classList.add("hidden");
+            document.getElementById(showId).classList.remove("hidden");
+        };
+    </script>
+</body>
+</html>
