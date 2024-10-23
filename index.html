@@ -19,11 +19,14 @@
 
         input, select, button {
             margin: 10px 0;
-            padding: 5px;
+            padding: 10px;
             border: 1px solid #d4c1ec; /* Light purple border */
             border-radius: 4px;
             background-color: #faf8f0; /* Light background for inputs */
             color: #5e548e; /* Text color */
+            width: 100%;
+            max-width: 400px; /* Prevent inputs from becoming too wide */
+            box-sizing: border-box;
         }
 
         button {
@@ -39,15 +42,19 @@
 
         .food-form {
             display: flex;
+            flex-wrap: wrap;
             justify-content: space-between;
         }
 
-        .food-details {
-            flex: 2;
+        .food-details, .shared-people {
+            flex: 1 1 100%;
+            margin-bottom: 10px;
         }
 
-        .shared-people {
-            flex: 1;
+        @media (min-width: 768px) {
+            .food-details, .shared-people {
+                flex: 1 1 48%; /* Split the form into two columns on larger screens */
+            }
         }
 
         .food-item {
@@ -76,7 +83,15 @@
             display: flex;
             justify-content: space-between;
             margin-bottom: 10px;
+            flex-wrap: wrap;
         }
+
+        @media (max-width: 480px) {
+            .cost-summary {
+                display: block; /* Stacks the cost breakdown vertically on small screens */
+            }
+        }
+
     </style>
 </head>
 <body>
@@ -114,7 +129,6 @@
         <h3>Added Foods</h3>
         <div id="foodList"></div>
 
-        <!-- Section to display total cost of added foods -->
         <div id="totalFoodCost"></div>
 
         <hr>
@@ -126,12 +140,10 @@
         <label for="tip">Tip (optional): </label>
         <input type="number" id="tip" placeholder="Enter tip in flat amount" oninput="updateTotalCost()"><br>
 
-        <!-- Section to display total food cost including tax and tip -->
         <div id="finalCostWithTip"></div>
 
         <hr>
 
-        <!-- Section to select who paid for the bill -->
         <h3>Who Paid the Bill?</h3>
         <label for="payer">Select the person who paid: </label>
         <select id="payer"></select><br>
@@ -152,8 +164,7 @@
             const totalPeople = +document.getElementById("totalPeople").value;
             if (totalPeople < 1) return alert("Enter a valid number of people.");
             document.getElementById("peopleContainer").innerHTML = Array.from({ length: totalPeople }, (_, i) =>
-                `<input type="text" id="person${i}" placeholder="Person ${i + 1}"><br>`
-            ).join('') + '<button onclick="storeNames()">Store Names</button>';
+                `<input type="text" id="person${i}" placeholder="Person ${i + 1}"><br>`).join('') + '<button onclick="storeNames()">Store Names</button>';
             document.querySelector('button[onclick="addPeople()"]').disabled = true;
         };
 
@@ -163,8 +174,7 @@
             if (people.length !== +document.getElementById("totalPeople").value) return alert("Fill out all names.");
             toggleVisibility("peopleSection", "foodFormSection");
             document.getElementById("sharedPeopleContainer").innerHTML = people.map((name, i) =>
-                `<label><input type="checkbox" id="sharedPerson${i}"> ${name}</label><br>`
-            ).join('');
+                `<label><input type="checkbox" id="sharedPerson${i}"> ${name}</label><br>`).join('');
             populatePayerDropdown();
         };
 
@@ -174,39 +184,30 @@
             const sharedPeople = people.filter((_, i) => document.getElementById(`sharedPerson${i}`).checked);
             if (!foodName || !foodCost || !sharedPeople.length) return alert("Enter food details and select at least one person.");
             
-            // Add food item to the list and calculate total
             foods.push({ foodName, foodCost, isAlcohol, sharedPeople });
             totalFoodAmount += foodCost;
 
-            // Update food list and total food cost
             document.getElementById("foodList").insertAdjacentHTML('beforeend',
                 `<div class="food-item"><strong>${foodName}</strong> - ₹${foodCost.toFixed(2)} ${isAlcohol === 'yes' ? '(Alcohol)' : ''}<br> Shared by: ${sharedPeople.join(', ')}</div>`
             );
             document.getElementById("totalFoodCost").innerHTML = `<h3>Total Food Cost:</h3> ₹${totalFoodAmount.toFixed(2)}`;
-
-            // Reset input fields
             document.getElementById("foodName").value = document.getElementById("foodCost").value = '';
-
-            // Update the total cost including tax and tip
             updateTotalCost();
         };
 
         const updateTotalCost = () => {
             const taxOption = document.querySelector('input[name="taxOption"]:checked').value;
             const tip = +document.getElementById("tip").value || 0;
-
             let totalWithTaxAndTip = totalFoodAmount;
             let foodTax = 0, alcoholTax = 0;
 
             if (taxOption === "separate") {
-                // Calculate food and alcohol taxes separately
                 foodTax = foods.reduce((sum, { foodCost, isAlcohol }) => isAlcohol === "no" ? sum + 0.05 * foodCost : sum, 0);
                 alcoholTax = foods.reduce((sum, { foodCost, isAlcohol }) => isAlcohol === "yes" ? sum + 0.1 * foodCost : sum, 0);
                 totalWithTaxAndTip += foodTax + alcoholTax;
             }
             totalWithTaxAndTip += tip;
 
-            // Display the breakdown of costs inline
             document.getElementById("finalCostWithTip").innerHTML = `
                 <h3>Total Cost Breakdown:</h3>
                 <div class="cost-summary"><strong>Food Cost:</strong> ₹${totalFoodAmount.toFixed(2)}</div>
@@ -219,20 +220,19 @@
 
         const calculateBill = () => {
             const taxOption = document.querySelector('input[name="taxOption"]:checked').value, tip = +document.getElementById("tip").value || 0;
-            const payer = document.getElementById("payer").value; // Get selected payer
+            const payer = document.getElementById("payer").value;
             let totalBill = foods.reduce((sum, { foodCost, isAlcohol }) => sum + foodCost +
                 (taxOption === "separate" ? (isAlcohol === "yes" ? 0.1 : 0.05) * foodCost : 0), tip);
             const costs = people.map((_, i) => foods.reduce((sum, { foodCost, isAlcohol, sharedPeople }) =>
                 sharedPeople.includes(people[i]) ? sum + (foodCost / sharedPeople.length) +
                 (taxOption === "separate" ? (isAlcohol === "yes" ? 0.1 : 0.05) * foodCost / sharedPeople.length : 0) : sum, 0) + tip / people.length);
 
-            // Display total cost per person and restaurant information
             document.getElementById("result").innerHTML = `<h3>Total Cost per Person:</h3>${costs.map((cost, i) =>
                 `${people[i]}: ₹${cost.toFixed(2)}<br>`).join('')}`;
             document.getElementById("restaurantInfo").innerHTML = `
                 <br><strong>Total Bill:</strong> ₹${totalBill.toFixed(2)}
                 <br><strong>Restaurant:</strong> ${document.getElementById("restaurantName").value}
-                <br><strong>Paid by:</strong> ${payer} <!-- Display who paid -->
+                <br><strong>Paid by:</strong> ${payer}
                 <br><strong>Date & Time:</strong> ${new Date().toLocaleString()}
             `;
         };
